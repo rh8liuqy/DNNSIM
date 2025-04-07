@@ -1,0 +1,35 @@
+library(lattice)
+library(latticeExtra)
+library(DNNSIM)
+library(tidyverse)
+library(reticulate)
+
+reticulate::use_condaenv("~/anaconda3/envs/r-pytorch/python.exe")
+
+source("./03_Scheme3_Main.R")
+
+simu_n <- 100
+n <- 1000
+
+simu_output <- vector("list",simu_n)
+
+current_seed <- 1
+count <- 1
+
+while (count <= simu_n) {
+    result <- tryCatch({simu_beta(seed = current_seed, n = n, model = model)},
+                       error = function(e){
+                           NULL
+                       })
+    if (! is.null(result)) {
+        simu_output[[count]] <- result
+        message(sprintf("Simulation with seed %d succeeded.", current_seed))
+        current_seed <- current_seed + 1
+        count <- count + 1
+    } else {
+        message(sprintf("Simulation with seed %d failed.", current_seed))
+        current_seed <- current_seed + 1
+    }
+}
+
+saveRDS(simu_output,paste0("./03_Scheme3/simu_output_beta_model_",model,"_n_",n,".RDS"))

@@ -1,0 +1,36 @@
+library(latex2exp)
+
+source("./05_Scheme5_Main.R")
+
+n <- 1000
+simu.n <- 500
+pvalue_output <- numeric(simu.n)
+i <- 1 
+j <- 1
+model_output <- vector(mode = "list", simu.n)
+
+while (i <= simu.n) {
+    print(paste0("number of success: ", i))
+    
+    # Use tryCatch to handle potential errors in simu1
+    result <- tryCatch({
+        simu2(seed = j, n = n)  # Use a unique seed for each successful run
+    }, error = function(e) {
+        message("Error in simulation ", j, ": ", e$message)
+        return(NULL)  # Return NULL if simu1 fails
+    })
+    
+    # If simu1 runs successfully, store the result and increment counters
+    if (!is.null(result)) {
+        pvalue_output[i] <- result$pvalue
+        model_output[[i]] <- result$ST_GX_D_output
+        i <- i + 1
+    }
+    # update seed no matter success or not
+    j <- j + 1
+}
+
+saveRDS(pvalue_output,paste0("./05_Scheme5/pvalue_output_partII_n",n,".RDS"))
+saveRDS(model_output,paste0("./05_Scheme5/model_output_partII_n",n,".RDS"))
+
+print(paste0("Statistical Power: ", mean(pvalue_output < 0.1)))
