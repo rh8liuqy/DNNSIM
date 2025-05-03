@@ -1,0 +1,129 @@
+library(lattice)
+library(latticeExtra)
+library(DNNSIM)
+library(tidyverse)
+library(reticulate)
+
+reticulate::use_condaenv("~/anaconda3/envs/r-pytorch/python.exe")
+
+# true g function ---------------------------------------------------------
+
+true_g_func <- function(U) {
+    output <- 10.0 * pnorm(q = 0.25*U, mean = 0, sd = 0.1)
+    return(output)
+}
+
+# data generation ---------------------------------------------------------
+
+X_generation <- function(n) {
+    output <- list(X1 = numeric(n),
+                   X2 = numeric(n),
+                   X3 = numeric(n))
+    for (i in 1:n) {
+        X1 <- rbinom(n = 1, size = 1, prob = 0.5)
+        if (X1 == 0) {
+            X2 <- runif(n = 1, min = -3.0, max = 0)
+        } else {
+            X2 <- runif(n = 1, min = 0, max = 3.0)
+        }
+        X3 <- runif(n = 1, min = -3.5, max = 2.5)
+        output$X1[i] <- X1
+        output$X2[i] <- X2
+        output$X3[i] <- X3
+    }
+    return(output)
+}
+
+data_generation_partI <- function(n,beta) {
+    beta <- beta / norm(beta, "2")
+    noises <- GUD::rTPSC(n = n, w = 0.6, theta = 0.0, sigma = 0.1, delta = 6.0)
+    X_generation_output <- X_generation(n = n)
+    X1 <- X_generation_output$X1
+    X2 <- X_generation_output$X2
+    X3 <- X_generation_output$X3
+    
+    U <- X1 * beta[1] + X2 * beta[2] + X3 * beta[3]
+    gU <- true_g_func(U)
+    y <- gU + noises
+    output <- data.frame(y = y, X1 = X1, X2 = X2, X3 = X3, U = U)
+    return(output)
+}
+
+data_generation_partII <- function(n,beta) {
+    beta <- beta / norm(beta, "2")
+    noises <- ordinal::rgumbel(n = n, location = 0.0, scale = 1.0, max = TRUE)
+    X_generation_output <- X_generation(n = n)
+    X1 <- X_generation_output$X1
+    X2 <- X_generation_output$X2
+    X3 <- X_generation_output$X3
+    
+    U <- X1 * beta[1] + X2 * beta[2] + X3 * beta[3]
+    gU <- true_g_func(U)
+    y <- gU + noises
+    output <- data.frame(y = y, X1 = X1, X2 = X2, X3 = X3, U = U)
+    return(output)
+}
+
+# simulation function -----------------------------------------------------
+
+# simu1: show that under H0, the p-value is uniformly distributed
+simu1 <- function(seed) {
+    set.seed(seed)
+    
+    n <- 2000
+    
+    num_epochs <- 1000
+    
+    df1 <- data_generation_partI(n = n,
+                                 beta = c(1,1,1))
+    
+    indication <- TRUE
+    random_state <- 100 # Initialize random_state
+    while (indication) {
+        message(paste0("Random State: ", random_state))
+        ST_GX_D_output <- tryCatch({DNN_model(y ~ X1 + X2 + X3 - 1, 
+                                              data = df1,
+                                              model = "ST-GX-D",
+                                              num_epochs = num_epochs,
+                                              verbatim = FALSE,
+                                              random_state = random_state)}, error = function(e) {
+                                                  message("Error in simulation ", j, ": ", e$message)
+                                                  return(NULL)  # Return NULL if simu1 fails
+                                              })
+        
+        if (is.null(ST_GX_D_output)) {
+            random_state <- random_state + 1
+        } else {
+            indication <- FALSE
+        }
+        if (random_state >= 120) {
+            stop("Try Different Data !")
+        }
+    }
+    
+    output <- list(ST_GX_D_output = ST_GX_D_output,
+                   pvalue = gof_test(ST_GX_D_output))
+    return(output)
+}
+
+simu2 <- function(seed,n) {
+    set.seed(seed)
+    
+    num_epochs <- 1000
+    
+    df1 <- data_generation_partII(n = n,
+                                  beta = c(1,1,1))
+    
+    indication <- TRUE
+    random_state <- 100 # Initialize random_state
+    ST_GX_D_output <- DNN_model(y ~ X1 + X2 + X3 - 1, 
+                                data = df1,
+                                model = "ST-GX-D",
+                                num_epochs = num_epochs,
+                                verbatim = FALSE,
+                                random_state = random_state)
+    
+    output <- list(ST_GX_D_output = ST_GX_D_output,
+                   pvalue = gof_test(ST_GX_D_output))
+    return(output)
+}

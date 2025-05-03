@@ -1,0 +1,35 @@
+library(GUD)
+library(latticeExtra)
+library(DNNSIM)
+library(tidyverse)
+library(reticulate)
+
+simu <- function(seed) {
+    set.seed(seed)
+    
+    w <- 0.6
+    theta <- 0.0
+    sigma <- 1.0
+    delta <- 6.0
+    
+    x <- rTPSC(n = 1e3, w = w, theta = theta, sigma = sigma, delta = delta)
+    x <- sum(x < 0.0)
+    
+    output <- binom.test(x = x,
+                         n = 1e3,
+                         p = w,
+                         alternative = "two.sided")$p.value
+    
+    return(output)
+}
+
+simu_output <- sapply(150:200, simu)
+simu_output_ecdf <- ecdf(simu_output)
+xaxis <- seq(0,1,length.out = 1000)
+yaxis <- simu_output_ecdf(xaxis)
+
+xyplot(yaxis ~ xaxis,
+       type = "l",
+       aspect = 1,
+       lwd = 2) +
+    latticeExtra::layer(panel.lines(x = xaxis, y = xaxis, col = "red", lwd = 2, lty = 2))
